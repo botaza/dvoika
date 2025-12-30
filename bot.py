@@ -100,12 +100,14 @@ async def bigbang(message: types.Message, state: FSMContext):
     await state.finish()
     await state.reset_data()
 
-    # delete all txt files except rt.txt
     for file in glob.glob("*.txt"):
         if os.path.basename(file) != "rt.txt":
             os.remove(file)
 
-    await message.answer("💥 Вселенная пересобрана.")
+    await message.answer(
+        "💥 Вселенная пересобрана.",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
     await message.answer("Привет. Введи пароль: эмоцзи того, кому разрешен доступ")
     await Flow.password.set()
 
@@ -125,12 +127,16 @@ async def start(message: types.Message, state: FSMContext):
         task = p_tasks[0]
         await message.answer(
             f"Ваша текущая активность:\n\n{task}",
-            reply_markup=kb_goal()
+            reply_markup=types.ReplyKeyboardRemove()
         )
+        await message.answer("Выберите действие:", reply_markup=kb_goal())
         await Flow.goal_decision.set()
         return
 
-    await message.answer("Привет. Введи пароль: эмоцзи того, кому разрешен доступ")
+    await message.answer(
+        "Привет. Введи пароль: эмоцзи того, кому разрешен доступ",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
     await Flow.password.set()
 
 
