@@ -15,10 +15,8 @@ logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+ROOT_RT = os.path.join(BASE_DIR, "rt.txt")
 os.makedirs(DATA_DIR, exist_ok=True)
-
-def p(name: str) -> str:
-    return os.path.join(DATA_DIR, name)
 
 
 ADMIN_UID = 1049416300
@@ -37,6 +35,15 @@ class Flow(StatesGroup):
     submit_activity = State()
     confirm_new_current = State()
     choose_from_list = State()
+    sync_energy = State()
+    sync_weather = State()
+    sync_social = State()
+    sync_focus = State()
+    sync_time = State()
+    sync_desire = State()
+    sync_intensity = State()
+    sync_word = State()
+
 
 
 # ================= ADMIN NOTIFY =================
@@ -50,10 +57,10 @@ async def notify_admin(user_id: int, hashtag: str, text: str = ""):
 # ================= HELPERS =================
 def user_files(user_id):
     return {
-        "h": p(f"h{user_id}.txt"),
-        "rt": p(f"{user_id}rt.txt"),
-        "p": p(f"{user_id}p.txt"),
-        "c": p(f"{user_id}c.txt"),
+        "h": os.path.join(DATA_DIR, f"h{user_id}.txt"),
+        "rt": os.path.join(DATA_DIR, f"{user_id}rt.txt"),
+        "p": os.path.join(DATA_DIR, f"{user_id}p.txt"),
+        "c": os.path.join(DATA_DIR, f"{user_id}c.txt"),
     }
 
 
@@ -75,27 +82,25 @@ def append_line(path, line):
         f.write(line.rstrip("\n") + "\n")
 
 
-def ensure_global_rt():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    path = p("rt.txt")
-    if not os.path.isfile(path):
-        with open(path, "w", encoding="utf-8"):
+def ensure_root_rt():
+    if not os.path.isfile(ROOT_RT):
+        with open(ROOT_RT, "w", encoding="utf-8"):
             pass
 
-def ensure_user_rt(uid):
-    ensure_global_rt()
+
+def ensure_user_rt(uid: int):
+    ensure_root_rt()
     files = user_files(uid)
 
-    # Create per-user files if missing
     for key in ("rt", "p", "c"):
-        if not os.path.exists(files[key]):
+        if not os.path.isfile(files[key]):
             with open(files[key], "w", encoding="utf-8"):
                 pass
 
-    # Copy global rt.txt if user rt is empty
-    if os.path.exists(files["rt"]) and os.path.getsize(files["rt"]) == 0:
-        shutil.copyfile(p("rt.txt"), files["rt"])
-
+    if os.path.getsize(files["rt"]) == 0:
+        root_tasks = read_lines(ROOT_RT)
+        if root_tasks:
+            write_lines(files["rt"], root_tasks)
 
 def emoji_numbers(n: int) -> str:
     digit_map = {
@@ -116,7 +121,10 @@ def emoji_numbers(n: int) -> str:
 # ================= KEYBOARDS =================
 def kb_main():
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("двойка основной", callback_data="main"))
+    kb.add(
+        types.InlineKeyboardButton("Двойка основной", callback_data="main"),
+        types.InlineKeyboardButton("Синхронизация", callback_data="sync")
+    )
     return kb
 
 
@@ -124,7 +132,7 @@ def kb_action():
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("Отправить активность", callback_data="submit"))
     kb.add(types.InlineKeyboardButton("Получить активность", callback_data="get"))
-    kb.add(types.InlineKeyboardButton("Посмотреть список активностей", callback_data="list"))
+    kb.add(types.InlineKeyboardButton("Смотреть список активностей", callback_data="list"))
     return kb
 
 
@@ -164,12 +172,108 @@ async def bigbang(message: types.Message, state: FSMContext):
 
     # Delete all txt files in DATA_DIR except rt.txt
     for file in glob.glob(os.path.join(DATA_DIR, "*.txt")):
-        if os.path.basename(file) != "rt.txt":
-            os.remove(file)
+        os.remove(file)
+            
 
     await message.answer("💥 Вселенная пересобрана.")
     await message.answer("Привет. Введи пароль: эмоцзи того, кому разрешен доступ")
     await Flow.password.set()
+
+
+def kb_sync_energy():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("💤 Ноль энергии", callback_data="energy_zero"),
+        types.InlineKeyboardButton("🌿 Спокойно", callback_data="energy_calm"),
+        types.InlineKeyboardButton("⚡ Заряд имеется", callback_data="energy_charged"),
+        types.InlineKeyboardButton("🔥 Переполнен(а)", callback_data="energy_over")
+    )
+    return kb
+
+
+def kb_sync_weather():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("☁️ Пасмурно", callback_data="weather_cloud"),
+        types.InlineKeyboardButton("🌧 Тяжело", callback_data="weather_rain"),
+        types.InlineKeyboardButton("🌤 Проясняется", callback_data="weather_clear"),
+        types.InlineKeyboardButton("☀️ Ясно", callback_data="weather_sun")
+    )
+    return kb
+
+
+def kb_sync_social():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("🙅‍♀️ Не хочу людей", callback_data="social_no"),
+        types.InlineKeyboardButton("🤏 Только близкие", callback_data="social_one"),
+        types.InlineKeyboardButton("🙂 Норм", callback_data="social_ok"),
+        types.InlineKeyboardButton("🎉 Хочу всех", callback_data="social_all")
+    )
+    return kb
+
+
+def kb_sync_focus():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("🧠 Мысли", callback_data="focus_mind"),
+        types.InlineKeyboardButton("❤️ Эмоции", callback_data="focus_heart"),
+        types.InlineKeyboardButton("💪 Тело", callback_data="focus_body"),
+        types.InlineKeyboardButton("🌀 Всё сразу", callback_data="focus_all")
+    )
+    return kb
+
+
+def kb_sync_time():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("🕰 Около 1 часа", callback_data="time_1h"),
+        types.InlineKeyboardButton("⏳ 2 часа", callback_data="time_2h"),
+        types.InlineKeyboardButton("🧭 3–4 часа", callback_data="time_3_4h"),
+        types.InlineKeyboardButton("♾ Не имеет значения", callback_data="time_any")
+    )
+    return kb
+
+
+def kb_sync_desire():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("😌 Расслабиться", callback_data="desire_relax"),
+        types.InlineKeyboardButton("🔄 Перезагрузиться", callback_data="desire_reset"),
+        types.InlineKeyboardButton("🎨 Создавать", callback_data="desire_create"),
+        types.InlineKeyboardButton("🚀 Польза", callback_data="desire_useful"),
+        types.InlineKeyboardButton("🎲 Удиви", callback_data="desire_random")
+    )
+    return kb
+
+
+def kb_sync_intensity():
+    kb = types.InlineKeyboardMarkup(row_width=3)
+    kb.add(
+        types.InlineKeyboardButton("🌱 Мягко", callback_data="intensity_soft"),
+        types.InlineKeyboardButton("⚖ Баланс", callback_data="intensity_mid"),
+        types.InlineKeyboardButton("🔥 Интенсивно", callback_data="intensity_hard")
+    )
+    return kb
+
+
+def kb_sync_word():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("Спокойно", callback_data="word_calm"),
+        types.InlineKeyboardButton("Устал(а)", callback_data="word_tired"),
+
+        types.InlineKeyboardButton("Перегружен(а)", callback_data="word_overloaded"),
+        types.InlineKeyboardButton("Пусто", callback_data="word_empty"),
+
+        types.InlineKeyboardButton("Тепло", callback_data="word_warm"),
+        types.InlineKeyboardButton("Напряжённо", callback_data="word_tense"),
+
+        types.InlineKeyboardButton("Интерес", callback_data="word_interest"),
+        types.InlineKeyboardButton("Неопределённо", callback_data="word_uncertain")
+    )
+    return kb
+
 
 
 # ================= RESET =================
@@ -184,7 +288,7 @@ async def reset(message: types.Message, state: FSMContext):
 # ================= START =================
 @dp.message_handler(commands=["start"], state="*")
 async def start(message: types.Message, state: FSMContext):
-    ensure_global_rt()
+    ensure_root_rt()
     await state.finish()
     await state.reset_data()
 
@@ -345,7 +449,7 @@ async def submit_activity(message: types.Message, state: FSMContext):
         return
 
     # FIXED: use absolute path for global rt.txt
-    append_line(p("rt.txt"), text)
+    append_line(ROOT_RT, text)
     append_line(files["rt"], text)
 
     await notify_admin(uid, "idea", text)
@@ -460,6 +564,106 @@ async def goal(cb: types.CallbackQuery, state: FSMContext):
 
     await get_activity(cb, state)
     await cb.answer()
+
+
+@dp.callback_query_handler(lambda c: c.data == "sync", state=Flow.main)
+async def sync_start(cb: types.CallbackQuery):
+    await cb.message.edit_text(
+        "⚡ Синхронизация\n\nКак сейчас с энергией?",
+        reply_markup=kb_sync_energy()
+    )
+    await Flow.sync_energy.set()
+    await cb.answer()
+
+
+@dp.callback_query_handler(state=Flow.sync_energy)
+async def sync_energy(cb: types.CallbackQuery, state: FSMContext):
+    await notify_admin(cb.from_user.id, "energy", cb.data)
+    await cb.message.edit_text(
+        "🌦 Если настроение — погода, то какая?",
+        reply_markup=kb_sync_weather()
+    )
+    await Flow.sync_weather.set()
+    await cb.answer()
+
+
+@dp.callback_query_handler(state=Flow.sync_weather)
+async def sync_weather(cb: types.CallbackQuery, state: FSMContext):
+    await notify_admin(cb.from_user.id, "weather", cb.data)
+    await cb.message.edit_text(
+        "👥 Люди сегодня — это…",
+        reply_markup=kb_sync_social()
+    )
+    await Flow.sync_social.set()
+    await cb.answer()
+
+
+@dp.callback_query_handler(state=Flow.sync_social)
+async def sync_social(cb: types.CallbackQuery, state: FSMContext):
+    await notify_admin(cb.from_user.id, "social", cb.data)
+    await cb.message.edit_text(
+        "🎯 Что сейчас нуждается в заботе?",
+        reply_markup=kb_sync_focus()
+    )
+    await Flow.sync_focus.set()
+    await cb.answer()
+
+
+@dp.callback_query_handler(state=Flow.sync_focus)
+async def sync_focus(cb: types.CallbackQuery, state: FSMContext):
+    await notify_admin(cb.from_user.id, "focus", cb.data)
+    await cb.message.edit_text(
+        "⏳ Сколько у тебя есть времени?",
+        reply_markup=kb_sync_time()
+    )
+    await Flow.sync_time.set()
+    await cb.answer()
+
+
+@dp.callback_query_handler(state=Flow.sync_time)
+async def sync_time(cb: types.CallbackQuery, state: FSMContext):
+    await notify_admin(cb.from_user.id, "time", cb.data)
+    await cb.message.edit_text(
+        "🧭 Чего ты хочешь прямо сейчас?",
+        reply_markup=kb_sync_desire()
+    )
+    await Flow.sync_desire.set()
+    await cb.answer()
+
+
+@dp.callback_query_handler(state=Flow.sync_desire)
+async def sync_desire(cb: types.CallbackQuery, state: FSMContext):
+    await notify_admin(cb.from_user.id, "desire", cb.data)
+    await cb.message.edit_text(
+        "🔥 Насколько интенсивно?",
+        reply_markup=kb_sync_intensity()
+    )
+    await Flow.sync_intensity.set()
+    await cb.answer()
+
+
+@dp.callback_query_handler(state=Flow.sync_intensity)
+async def sync_intensity(cb: types.CallbackQuery, state: FSMContext):
+    await notify_admin(cb.from_user.id, "intensity", cb.data)
+    await cb.message.edit_text(
+        "📝 Какое слово сейчас ближе всего?",
+        reply_markup=kb_sync_word()
+    )
+    await Flow.sync_word.set()
+    await cb.answer()
+
+
+@dp.callback_query_handler(state=Flow.sync_word)
+async def sync_word(cb: types.CallbackQuery, state: FSMContext):
+    await notify_admin(cb.from_user.id, "word", cb.data)
+
+    await cb.message.answer(
+        "✅ Синхронизация завершена.\n\nМожно перейти к активностям.",
+        reply_markup=kb_action()
+    )
+    await Flow.action.set()
+    await cb.answer()
+
 
 
 # ================= RUN =================
