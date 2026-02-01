@@ -284,14 +284,6 @@ def kb_sync_word():
 
 
 
-# ================= RESET =================
-@dp.message_handler(commands=["reset"], state="*")
-async def reset(message: types.Message, state: FSMContext):
-    await state.finish()
-    await state.reset_data()
-    await message.answer("Состояние сброшено. Выбери режим:", reply_markup=kb_main())
-    await Flow.main.set()
-
 
 # ================= START =================
 @dp.message_handler(commands=["start"], state="*")
