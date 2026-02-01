@@ -82,9 +82,11 @@ def append_line(path, line):
 
 
 def ensure_global_rt():
+    os.makedirs(DATA_DIR, exist_ok=True)
     path = p("rt.txt")
-    if not os.path.exists(path):
-        open(path, "w", encoding="utf-8").close()
+    if not os.path.isfile(path):
+        with open(path, "w", encoding="utf-8"):
+            pass
 
 
 def ensure_user_rt(uid):
@@ -163,9 +165,12 @@ def kb_list_menu():
 async def bigbang(message: types.Message, state: FSMContext):
     await state.finish()
     await state.reset_data()
-    for file in glob.glob("*.txt"):
+
+    # FIXED: use absolute path
+    for file in glob.glob(os.path.join(DATA_DIR, "*.txt")):
         if os.path.basename(file) != "rt.txt":
             os.remove(file)
+
     await message.answer("💥 Вселенная пересобрана.")
     await message.answer("Привет. Введи пароль: эмоцзи того, кому разрешен доступ")
     await Flow.password.set()
@@ -343,7 +348,8 @@ async def submit_activity(message: types.Message, state: FSMContext):
         await message.answer("Пустая активность.")
         return
 
-    append_line("rt.txt", text)
+    # FIXED: use absolute path for global rt.txt
+    append_line(p("rt.txt"), text)
     append_line(files["rt"], text)
 
     await notify_admin(uid, "idea", text)
