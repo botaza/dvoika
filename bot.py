@@ -70,15 +70,9 @@ def write_lines(path, lines):
 
 
 def append_line(path, line):
-    if os.path.exists(path):
-        with open(path, "rb+") as f:
-            f.seek(0, 2)
-            if f.tell() > 0:
-                f.seek(-1, 2)
-                if f.read(1) != b"\n":
-                    f.write(b"\n")
+    """Append a line safely, always ending with a newline."""
     with open(path, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+        f.write(line.rstrip("\n") + "\n")
 
 
 def ensure_global_rt():
@@ -88,17 +82,20 @@ def ensure_global_rt():
         with open(path, "w", encoding="utf-8"):
             pass
 
-
 def ensure_user_rt(uid):
     ensure_global_rt()
     files = user_files(uid)
 
+    # Create per-user files if missing
     for key in ("rt", "p", "c"):
         if not os.path.exists(files[key]):
-            open(files[key], "a", encoding="utf-8").close()
+            with open(files[key], "w", encoding="utf-8"):
+                pass
 
-    if os.path.getsize(files["rt"]) == 0:
-        shutil.copy(p("rt.txt"), files["rt"])
+    # Copy global rt.txt if user rt is empty
+    if os.path.exists(files["rt"]) and os.path.getsize(files["rt"]) == 0:
+        shutil.copyfile(p("rt.txt"), files["rt"])
+
 
 def emoji_numbers(n: int) -> str:
     digit_map = {
@@ -160,13 +157,12 @@ def kb_list_menu():
     return kb
 
 
-# ================= BIGBANG =================
 @dp.message_handler(lambda m: m.text and m.text.lower() == "bigbang", state="*")
 async def bigbang(message: types.Message, state: FSMContext):
     await state.finish()
     await state.reset_data()
 
-    # FIXED: use absolute path
+    # Delete all txt files in DATA_DIR except rt.txt
     for file in glob.glob(os.path.join(DATA_DIR, "*.txt")):
         if os.path.basename(file) != "rt.txt":
             os.remove(file)
@@ -357,6 +353,7 @@ async def submit_activity(message: types.Message, state: FSMContext):
 
     await message.answer("Сделать её текущей?", reply_markup=kb_confirm_current())
     await Flow.confirm_new_current.set()
+
 
 
 # ================= CONFIRM =================
