@@ -162,7 +162,15 @@ def kb_list_menu():
     kb.add(types.InlineKeyboardButton("🎲 Выбрать случайно", callback_data="get"))
     kb.add(types.InlineKeyboardButton("Выбрать активность", callback_data="choose"))
     kb.add(types.InlineKeyboardButton("Удалить активности", callback_data="delete"))
+    kb.add(types.InlineKeyboardButton("⬅ Назад", callback_data="back_to_action"))
     return kb
+
+
+@dp.callback_query_handler(lambda c: c.data == "back_to_action", state="*")
+async def back_to_action(cb: types.CallbackQuery):
+    await cb.message.edit_text("Выберите действие:", reply_markup=kb_action())
+    await Flow.action.set()
+    await cb.answer()
 
 
 @dp.message_handler(lambda m: m.text and m.text.lower() == "bigbang", state="*")
