@@ -178,7 +178,7 @@ async def bigbang(message: types.Message, state: FSMContext):
     await state.finish()
     await state.reset_data()
 
-    # Delete all txt files in DATA_DIR except rt.txt
+    # Delete all txt files in DATA_DIR 
     for file in glob.glob(os.path.join(DATA_DIR, "*.txt")):
         os.remove(file)
             
@@ -330,6 +330,13 @@ async def main(cb: types.CallbackQuery):
     await cb.message.edit_text("Что делаем?", reply_markup=kb_action())
     await Flow.action.set()
     await cb.answer()
+
+@dp.message_handler(state=Flow.main)
+async def main_fallback(message: types.Message):
+    await message.answer(
+        "Выбери режим кнопкой ниже 👇",
+        reply_markup=kb_main()
+    )
 
 
 # ================= ACTION =================
@@ -602,7 +609,7 @@ async def sync_weather(cb: types.CallbackQuery, state: FSMContext):
 async def sync_social(cb: types.CallbackQuery, state: FSMContext):
     await notify_admin(cb.from_user.id, "social", cb.data)
     await cb.message.edit_text(
-        "🎯 Что сейчас нуждается в заботе?",
+        "🎯 Что сейчас просит внимания?",
         reply_markup=kb_sync_focus()
     )
     await Flow.sync_focus.set()
