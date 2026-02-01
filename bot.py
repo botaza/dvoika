@@ -13,6 +13,14 @@ from bot_token import BOT_TOKEN
 
 logging.basicConfig(level=logging.INFO)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+def p(name: str) -> str:
+    return os.path.join(DATA_DIR, name)
+
+
 ADMIN_UID = 1049416300
 
 bot = Bot(token=BOT_TOKEN)
@@ -42,10 +50,10 @@ async def notify_admin(user_id: int, hashtag: str, text: str = ""):
 # ================= HELPERS =================
 def user_files(user_id):
     return {
-        "h": f"h{user_id}.txt",
-        "rt": f"{user_id}rt.txt",
-        "p": f"{user_id}p.txt",
-        "c": f"{user_id}c.txt",
+        "h": p(f"h{user_id}.txt"),
+        "rt": p(f"{user_id}rt.txt"),
+        "p": p(f"{user_id}p.txt"),
+        "c": p(f"{user_id}c.txt"),
     }
 
 
@@ -74,16 +82,21 @@ def append_line(path, line):
 
 
 def ensure_global_rt():
-    if not os.path.exists("rt.txt"):
-        open("rt.txt", "w", encoding="utf-8").close()
+    path = p("rt.txt")
+    if not os.path.exists(path):
+        open(path, "w", encoding="utf-8").close()
 
 
 def ensure_user_rt(uid):
-    files = user_files(uid)
     ensure_global_rt()
-    if not os.path.exists(files["rt"]):
-        shutil.copy("rt.txt", files["rt"])
+    files = user_files(uid)
 
+    for key in ("rt", "p", "c"):
+        if not os.path.exists(files[key]):
+            open(files[key], "a", encoding="utf-8").close()
+
+    if os.path.getsize(files["rt"]) == 0:
+        shutil.copy(p("rt.txt"), files["rt"])
 
 def emoji_numbers(n: int) -> str:
     digit_map = {
