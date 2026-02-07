@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 ROOT_RT = os.path.join(BASE_DIR, "rt.txt")
+TOPICS_FILE = os.path.join(BASE_DIR, "topics.txt")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
@@ -62,6 +63,17 @@ def user_files(user_id):
         "p": os.path.join(DATA_DIR, f"{user_id}p.txt"),
         "c": os.path.join(DATA_DIR, f"{user_id}c.txt"),
     }
+
+
+def get_random_topic():
+    if not os.path.isfile(TOPICS_FILE):
+        return None
+    topics = read_lines(TOPICS_FILE)
+    if not topics:
+        return None
+    return random.choice(topics)
+
+
 
 
 def read_lines(path):
@@ -125,6 +137,20 @@ def kb_main():
         types.InlineKeyboardButton("Двойка основной", callback_data="main"),
         types.InlineKeyboardButton("Синхронизация", callback_data="sync")
     )
+    kb.add(
+        types.InlineKeyboardButton("Поговорим", callback_data="talk")
+    )
+    return kb
+
+
+def kb_talk_menu():
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton("🎲 Новая тема", callback_data="new_topic")
+    )
+    kb.add(
+        types.InlineKeyboardButton("⬅ В главное меню", callback_data="back_to_main")
+    )
     return kb
 
 
@@ -186,6 +212,64 @@ async def bigbang(message: types.Message, state: FSMContext):
     await message.answer("💥 Вселенная пересобрана.")
     await message.answer("Привет. Введи пароль: эмоцзи того, кому разрешен доступ")
     await Flow.password.set()
+
+
+@dp.callback_query_handler(lambda c: c.data == "talk", state=Flow.main)
+async def talk_start(cb: types.CallbackQuery):
+    uid = cb.from_user.id
+
+    await notify_admin(uid, "talk")
+
+    topic = get_random_topic()
+    if not topic:
+        await cb.message.answer(
+            "Темы для разговора пока не найдены.",
+            reply_markup=kb_main()
+        )
+        await cb.answer()
+        return
+
+    await notify_admin(uid, "topic", topic)
+
+    await cb.message.edit_text(
+        f"💬 Тема для разговора:\n\n{topic}",
+        reply_markup=kb_talk_menu()
+    )
+    await cb.answer()
+
+
+@dp.callback_query_handler(lambda c: c.data == "new_topic", state="*")
+async def new_topic(cb: types.CallbackQuery):
+    uid = cb.from_user.id
+
+    topic = get_random_topic()
+    if not topic:
+        await cb.message.answer(
+            "Темы закончились.",
+            reply_markup=kb_main()
+        )
+        await cb.answer()
+        return
+
+    await notify_admin(uid, "topic", topic)
+
+    await cb.message.edit_text(
+        f"💬 Новая тема:\n\n{topic}",
+        reply_markup=kb_talk_menu()
+    )
+    await cb.answer()
+
+
+@dp.callback_query_handler(lambda c: c.data == "back_to_main", state="*")
+async def back_to_main(cb: types.CallbackQuery, state: FSMContext):
+    await cb.message.edit_text(
+        "Выбери режим",
+        reply_markup=kb_main()
+    )
+    await Flow.main.set()
+    await cb.answer()
+
+
 
 
 def kb_sync_energy():
